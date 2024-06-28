@@ -10,18 +10,20 @@ if ($connect->connect_error) {
 $user_id = $_SESSION['id_users'];
 // Query to get cart items
 $sql = "
-    SELECT pembelian.id_order, pembelian.id_pembeli, pembelian.id_cart, pembelian.total_harga, pembelian.alamat,
-           GROUP_CONCAT(cart.id_cart) AS id_cart,
-           GROUP_CONCAT(cart.jumlah) AS jumlah,
-           GROUP_CONCAT(produk.nama_produk) AS nama_produk,
-           GROUP_CONCAT(produk.deskripsi_produk) AS deskripsi_produk,
-           GROUP_CONCAT(produk.harga_produk) AS harga_produk,
-           GROUP_CONCAT(produk.gambar) AS gambar
-    FROM pembelian
-    INNER JOIN cart ON FIND_IN_SET(cart.id_cart, pembelian.id_cart)
-    INNER JOIN produk ON FIND_IN_SET(produk.id_produk, cart.id_product)
-    WHERE pembelian.id_pembeli = $user_id
-    GROUP BY pembelian.id_pembeli
+SELECT pembelian.id_order, pembelian.id_pembeli, pembelian.id_cart, pembelian.total_harga, pembelian.alamat, pembelian.status_pembayaran, pembelian.metode_pengiriman, pembelian.status_pesanan,
+       GROUP_CONCAT(cart.id_cart) AS id_cart,
+       GROUP_CONCAT(cart.jumlah) AS jumlah,
+       GROUP_CONCAT(produk.nama_produk) AS nama_produk,
+       GROUP_CONCAT(produk.deskripsi_produk) AS deskripsi_produk,
+       GROUP_CONCAT(produk.harga_produk) AS harga_produk,
+       GROUP_CONCAT(produk.gambar) AS gambar
+FROM pembelian
+INNER JOIN cart ON FIND_IN_SET(cart.id_cart, pembelian.id_cart)
+INNER JOIN produk ON FIND_IN_SET(produk.id_produk, cart.id_product)
+WHERE pembelian.id_pembeli = 14
+GROUP BY pembelian.id_order
+ORDER BY pembelian.id_order DESC
+LIMIT 1
 ";
 $result = $connect->query($sql);
 
@@ -153,10 +155,16 @@ $total_price = 0;
             <!-- Item 1 -->
             <?php
             $checkboxes = '';
+            $total_semua_harga = 0;
+            $nama_pembayaran = '';
+            $nama_pengiriman = '';
+            $nomor_rekening = '';
                if ($result->num_rows > 0) {
                      // Output data of each row
                      while($row = $result->fetch_assoc()) {
                         $alamat_pengiriman = $row['alamat'];
+                        $metode_pengiriman = $row['metode_pengiriman'];
+                        $status_pesanan = $row['status_pesanan'];
                         if ($alamat_pengiriman != '0') {
                             $addressClass = 'hidden';
                             $alamat = 'green';
@@ -169,6 +177,66 @@ $total_price = 0;
                             $ceklis = 'hidden';
                             $ceklisPayment = 'hidden';
                             $paymentClass = 'hidden';
+
+                        }
+                        if ($metode_pengiriman != '0'){
+                            $formBayar = '';
+                            $payment = 'green';
+                            $paymentClass = 'hidden';
+
+                        } else {
+                            $payment = '';
+                            $ceklisPayment = 'hidden';
+                            $formBayar = 'hidden';
+                        }
+
+                        if ($status_pesanan != '0') {
+                            $bayar = 'green';
+                            $ceklisBayar = '';
+                            $formBayar = 'hidden';
+                        } else {
+                            $bayar = '';
+                            $ceklisBayar = 'hidden';
+                            
+                        }
+
+                        // Menambahkan biaya layanan pengiriman dan fee admin jika status_pembayaran adalah 1
+                        $biaya_admin = 0;
+                        $biaya_pengiriman = 0;
+                        $fee_admin = 0;
+                        if ($row['status_pembayaran'] == 1) {
+                            $biaya_admin = 6000;
+                            $total_semua_harga += $biaya_admin;
+                            $nama_pembayaran = 'COD';
+                            $judul_nomor = 'Cash on Delivery (COD)';
+                            
+                        } elseif ($row['status_pembayaran'] == 2) {
+                            $biaya_admin = 8000;
+                            $total_semua_harga += $biaya_admin;
+                            $nama_pembayaran = 'Transfer BCA';
+                            $judul_nomor = 'Nomor Rekening (Bank BCA)';
+                            $nomor_rekening = '2330645477';
+                        } elseif ($row['status_pembayaran'] == 3) {
+                            $biaya_admin = 5000;
+                            $total_semua_harga += $biaya_admin;
+                            $judul_nomor = 'Transfer Dana';
+                            $nama_pembayaran = 'Transfer Dana';
+                            $nomor_rekening = '082175352899';
+
+                        }
+
+                        if ($row['metode_pengiriman'] == 1) {
+                            $biaya_pengiriman = 10000;
+                            $total_semua_harga += $biaya_pengiriman;
+                            $nama_pengiriman = 'Reguler';
+                        } elseif ($row['metode_pengiriman'] == 2) {
+                            $biaya_pengiriman = 12000;
+                            $total_semua_harga += $biaya_pengiriman;
+                            $nama_pembayaran = 'Express';
+                        } elseif ($row['metode_pengiriman'] == 3) {
+                            $biaya_pengiriman = 17000;
+                            $total_semua_harga += $biaya_pengiriman;
+                            $nama_pembayaran = 'Same Day';
                         }
                         
                         $harga_produk_array = explode(',', $row['harga_produk']);
@@ -225,6 +293,7 @@ $total_price = 0;
                         }
                     }
                 } else {
+                    $form = 'hidden';
                     echo "<p>No items in cart</p>";
                 }
                 
@@ -237,7 +306,7 @@ $total_price = 0;
             <!-- <button id="checkoutBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-300">Checkout</button> -->
          </div>
         </div>
-            <ol class="mt-10 ml-10 mb-10 mr-10 space-y-4 w-auto">
+            <ol class="mt-10 ml-10 mb-10 mr-10 space-y-4 w-auto <?php echo $form; ?>">
                 <li>
                     <div class="w-full p-4 text-<?php echo $alamat; ?>-700 border border-<?php echo $alamat; ?>-300 rounded-lg bg-<?php echo $alamat; ?>-50 dark:bg-gray-800 dark:border-<?php echo $alamat; ?>-800 dark:text-<?php echo $alamat; ?>-400" role="alert">
                         <div class="flex items-center justify-between">
@@ -276,7 +345,7 @@ $total_price = 0;
                             </svg>
                         </div>
                         <!-- <h2 class="text-lg font-semibold">Pilih Metode Pengiriman</h2> -->
-                        <form <?php echo $paymentClass; ?> action="payment_submit.php" method="POST">
+                        <form class="max-w-auto mx-auto <?php echo $paymentClass; ?>" action="payment_submit.php" method="POST">
                         <div class="flex space-x-6">
                                 <!-- Card Reguler -->
                                 <div class="w-full bg-white rounded-lg shadow-md p-6 flex items-center space-x-4">
@@ -362,13 +431,56 @@ $total_price = 0;
                     </div>
                 </li>
                 <li>
-                    <div class="w-full p-4 text-<?php echo $color; ?>-700 bg-<?php echo $color; ?>-100 border border-<?php echo $color; ?>-300 rounded-lg dark:bg-gray-800 dark:border-<?php echo $color; ?>-800 dark:text-<?php echo $color; ?>-400" role="alert">
+                <div class="w-full p-4 text-<?php echo $bayar; ?>-700 border border-<?php echo $bayar; ?>-300 rounded-lg bg-<?php echo $bayar; ?>-50 dark:bg-gray-800 dark:border-<?php echo $bayar; ?>-800 dark:text-<?php echo $bayar; ?>-400" role="alert">
                         <div class="flex items-center justify-between">
-                            <span class="sr-only">Social accounts</span>
-                            <h3 class="font-medium">3. Social accounts</h3>
-                            <svg class="w-4 h-4 <?php echo $ceklis; ?>" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 16 12">
+                            <span class="sr-only">Payment</span>
+                            <h3 class="font-medium">3. Payment</h3>
+                            <svg class="w-4 h-4 <?php echo $ceklisBayar; ?>" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 16 12">
                                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5.917 5.724 10.5 15 1.5"/>
                             </svg>
+                        </div>
+                        <div class="mt-4 <?php echo $formBayar; ?>">
+                            <h4 class="font-semibold text-lg mb-2">Rincian Belanja</h4>
+                            <ul class="space-y-2">
+                                <?php
+
+                                // Menggabungkan data produk
+                                for ($i = 0; $i < count($nama_produk_array); $i++) {
+                                    $total_harga = $jumlah_array[$i] * $harga_produk_float[$i];
+                                    $total_semua_harga += $total_harga;
+                                    echo '<li class="flex justify-between">';
+                                    echo '<span>' . $jumlah_array[$i] . 'x ' . $nama_produk_array[$i] . '</span>';
+                                    echo '<span>Rp. ' . number_format($total_harga, 0, ',', '.') . '</span>';
+                                    echo '</li>';
+                                }
+                                ?>
+                                <!-- Menambahkan biaya admin -->
+                                <li class="flex justify-between">
+                                    <span>Biaya Admin (<?php echo $nama_pembayaran; ?>)</span>
+                                    <span>Rp. <?php echo number_format($biaya_admin, 0, ',', '.'); ?></span>
+                                </li>
+                                <!-- Menambahkan biaya pengiriman -->
+                                <li class="flex justify-between">
+                                    <span>Biaya Pengiriman (<?php echo $nama_pengiriman; ?>)</span>
+                                    <span>Rp. <?php echo number_format($biaya_pengiriman, 0, ',', '.'); ?></span>
+                                </li>
+                            </ul>
+                            <div class="mt-4 border-t pt-2 flex justify-between font-bold text-lg">
+                                <span>Total Tagihan</span>
+                                <span>Rp. <?php echo number_format($total_semua_harga, 0, ',', '.'); ?></span>
+                            </div>
+                            <div class="mt-4 p-4 bg-gray-200 text-center rounded-lg">
+                                <h4 class="font-semibold text-lg"><?php echo $judul_nomor; ?></h4>
+                                <p class="text-2xl font-bold tracking-widest"><?php echo $nomor_rekening; ?></p>
+                            </div>
+                            <div class="mt-6">
+                                <form action="pembayaran_selesai.php" method="POST">
+                                <input type="hidden" name="total_harga" value="<?php echo $total_semua_harga; ?>">
+                                    <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg shadow-md hover:bg-blue-700">
+                                        Pembayaran Selesai
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </li>
@@ -399,7 +511,7 @@ $total_price = 0;
     </div>
 </div>
 
-<div class="flex-1 p-4 sm:mr-64">
+<!-- <div class="flex-1 p-4 sm:mr-64">
     <div class="mt-14 mx-auto py-8">
         <div class="bg-white shadow-md rounded-lg overflow-hidden">
             <div class="px-4 py-5 sm:px-6">
@@ -411,7 +523,7 @@ $total_price = 0;
 
         </div>
     </div>
-</div>
+</div> -->
 
 
 
@@ -472,6 +584,38 @@ $total_price = 0;
                     window.location.href = 'pesanan.php';  // Redirect to checkout page
                 }
             });
+        }
+
+                    // Simulate checkout success event
+    document.addEventListener('DOMContentLoaded', function() {
+            <?php
+            if (isset($_GET['bayar_success']) && $_GET['bayar_success'] == '1') {
+              echo "showSuccessBayar();";
+            }
+            ?>
+        });
+    function showSuccessBayar() {
+        Swal.fire({
+                title: 'Loading...',
+                html: 'Please wait while we process your request.',
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                    // Simulate a longer process with setTimeout (replace with your actual process)
+                    setTimeout(() => {
+                        Swal.close(); // Close the loading dialog after some time (simulating process completion)
+                        // Here you can continue with your next steps after the loading process
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Payment Completed',
+                            text: 'Your order has been completed placed successfully.',
+                            showConfirmButton: true
+                        });
+                    }, 3000); // Adjust the time (in milliseconds) as per your actual process duration
+                }
+            });
+        
         }
     </script>
 </body>

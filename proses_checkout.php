@@ -14,8 +14,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         $alamat = '0'; // Contoh alamat, sesuaikan dengan data pembeli
-        $status_pembayaran = 1; // Contoh status pembayaran, sesuaikan dengan kebutuhan Anda
-        $status_pesanan = 1; // Contoh status pesanan, sesuaikan dengan kebutuhan Anda
+        $status_pembayaran = ''; // Contoh status pembayaran, sesuaikan dengan kebutuhan Anda
+        $metode_pengiriman = ''; // Contoh status pesanan, sesuaikan dengan kebutuhan Anda
 
         try {
             // Mulai transaksi
@@ -38,18 +38,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
 
             // Insert data ke tabel pembelian
-            $stmt = $connect->prepare("INSERT INTO pembelian (id_pembeli, id_cart, total_harga, alamat) VALUES (?, ?, ?, ?)");
+            $stmt = $connect->prepare("INSERT INTO pembelian (id_pembeli, id_cart, total_harga, alamat, status_pembayaran, metode_pengiriman) VALUES (?, ?, ?, ?, ?, ?)");
             if (!$stmt) {
                 throw new Exception("Error preparing insert statement: " . $connect->error);
             }
 
             // Insert hanya satu kali dengan id_cart yang digabungkan
-            $stmt->bind_param("isis", $id_pembeli, $id_cart_list, $total_bayar, $alamat);
+            $stmt->bind_param("isisii", $id_pembeli, $id_cart_list, $total_bayar, $alamat, $status_pembayaran, $metode_pengiriman);
             if (!$stmt->execute()) {
                 throw new Exception("Error executing insert statement: " . $stmt->error);
             }
 
+            // Mendapatkan id_order yang baru saja dimasukkan
+            $id_order = $connect->insert_id;
+            
+            // Menyimpan id_order ke dalam session
+            $_SESSION['id_order'] = $id_order;
 
+            // Update status_cart menjadi 1 untuk cart yang terkait
+            $updateCartStmt = $connect->prepare("UPDATE cart SET status_cart = 1 WHERE id_cart IN ($id_cart_list)");
+            if (!$updateCartStmt) {
+                throw new Exception("Error preparing update statement for cart: " . $connect->error);
+            }
+
+            if (!$updateCartStmt->execute()) {
+                throw new Exception("Error executing update statement for cart: " . $updateCartStmt->error);
+            }
             // Commit transaksi
             $connect->commit();
             // Redirect dengan parameter checkout_success
